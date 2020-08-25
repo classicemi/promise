@@ -1,23 +1,16 @@
-const Promise = require("./index");
+// const Promise = require("./index");
 
-// new Promise((resolve, reject) => {
-//   resolve("resolved value");
-// }).then((value) => {
-//   console.log("resolved with:", value);
-// });
+const Promise = require(".")
 
-// console.log("end");
+// const Promise = require(".");
 
-const promise = new Promise((resolve, reject) => {
-  console.log(1);
-  resolve();
-}).then(() => {
-  console.log(3);
-  return "a";
-});
+const promise = Promise.resolve()
 
-console.log(2);
-
-promise.then((value) => {
-  console.log(value);
-});
+promise.then(() => {
+  // console.log(999)
+  return promise
+}).then((value) => {
+  console.log(value)
+}, (reason) => {
+  // console.log(reason)
+})

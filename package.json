@@ -1,0 +1,27 @@
+{
+  "name": "promise",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "promises-aplus-tests": "^2.1.2"
+  },
+  "scripts": {
+    "test": "promises-aplus-tests test/adapter --grep 2.3.2 --reporter spec"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/classicemi/promise.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/classicemi/promise/issues"
+  },
+  "homepage": "https://github.com/classicemi/promise#readme"
+}
