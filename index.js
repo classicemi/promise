@@ -2,6 +2,72 @@ const PENDING = "PENDING";
 const FULFILLED = "FULFILLED";
 const REJECTED = "REJECTED";
 
+function resolvePromise(promise, x, resolve, reject) {
+  // 返回值为Promise实例时，有一些特殊行为
+  if (x instanceof Promise) {
+    // 返回当前同一实例时，抛出TypeError
+    if (x === promise) {
+      throw new TypeError();
+    }
+    if (x.status !== PENDING) {
+      this.status = x.status;
+      x.status === FULFILLED
+        ? resolve(x.value)
+        : reject(x.reason);
+    }
+    // 如果返回的promise在后面发生状态改变，则改变当前promise的状态
+    x.then(
+      (value) => {
+        this.status = x.status;
+        resolve(value);
+      },
+      (reason) => {
+        this.status = x.status;
+        reject(reason);
+      }
+    );
+  } else {
+    if ((typeof x === 'object' || 'function') && !!x.then) {
+      promise.then = function(...args) {
+        x.then.apply(promise, args)
+      }
+    }
+    resolve(x);
+  }
+}
+
+function rejectPromise(promise, r, resolve, reject) {
+  if (r instanceof Promise) {
+    if (r === promise) {
+      throw new TypeError();
+    }
+    if (r.status !== PENDING) {
+      this.status = r.status;
+      r.status === FULFILLED
+        ? resolve(r.value)
+        : reject(r.reason);
+    }
+    // 如果返回的promise在后面发生状态改变，则改变当前promise的状态
+    r.then(
+      (value) => {
+        this.status = r.status;
+        resolve(value);
+      },
+      (reason) => {
+        this.status = r.status;
+        reject(reason);
+      }
+    );
+  } else {
+    if ((typeof r === 'object' || 'function') && !!r.then) {
+      promise.then = function(...args) {
+        r.then.apply(promise, args)
+      }
+    }
+    resolve(r);
+  }
+}
+
 class Promise {
   constructor(executor) {
     // 记录实例状态
@@ -68,50 +134,35 @@ class Promise {
   }
 
   then(onFulfilled, onRejected) {
-    let resolveFn, rejectFn;
     let promise = new Promise((resolve, reject) => {
-      resolveFn = resolve;
-      rejectFn = reject;
-    });
-    // 检验回调是否为函数
-    if (typeof onFulfilled === "function") {
-      // 当状态为fulfilled时，直接执行回调并返回一个新实例
+      if (typeof onFulfilled !== 'function') {
+        // onFulfilled非函数时将value透传到下一个promise
+        onFulfilled = (value) => resolve(value);
+      }
+      if (typeof onRejected !== 'function') {
+        // onRejected非函数时将reason透传到下一个promise
+        onRejected = (reason) => reject(reason);
+      }
       if (this.status === FULFILLED) {
         setTimeout(() => {
           try {
             let ret = onFulfilled(this.value);
-            // 返回值为Promise实例时，有一些特殊行为
-            if (ret instanceof Promise) {
-              // 返回当前同一实例时，抛出TypeError
-              if (ret === promise) {
-                throw new TypeError();
-              }
-              if (ret.status !== PENDING) {
-                this.status = ret.status;
-                ret.status === FULFILLED
-                  ? resolveFn(ret.value)
-                  : rejectFn(ret.reason);
-              }
-              // 如果返回的promise在后面发生状态改变，则改变当前promise的状态
-              ret.then(
-                (value) => {
-                  this.status = ret.status;
-                  resolveFn(value);
-                },
-                (reason) => {
-                  this.status = ret.status;
-                  rejectFn(reason);
-                }
-              );
-            } else {
-              resolveFn(ret);
-            }
+            resolvePromise(promise, ret, resolve, reject)
           } catch (err) {
-            rejectFn(err);
+            reject(err);
+          }
+        }, 0)
+      }
+      if (this.status === REJECTED) {
+        setTimeout(() => {
+          try {
+            let ret = onRejected(this.reason);
+            rejectPromise(promise, ret, resolve, reject)
+          } catch (err) {
+            reject(err);
           }
         }, 0);
       }
-      // 状态为pending时，将回调保存至队列中
       if (this.status === PENDING) {
         this.onFulfilledCallbacks.push((value) => {
           // 包装一层，根据回调执行状态修改返回的新实例的状态
@@ -120,70 +171,25 @@ class Promise {
             if (ret instanceof Promise) {
               if (ret.status !== PENDING) {
                 this.status = ret.status;
-                resolveFn(ret.value);
+                resolve(ret.value);
               }
             } else {
-              resolveFn(ret);
+              resolve(ret);
             }
           } catch (err) {
-            rejectFn(err);
+            reject(err);
           }
         });
-      }
-    } else {
-      // onFulfilled非函数时将value透传到下一个promise
-      onFulfilled = (value) => resolveFn(value);
-      this.onFulfilledCallbacks.push(onFulfilled);
-    }
-    if (typeof onRejected === "function") {
-      if (this.status === REJECTED) {
-        setTimeout(() => {
-          try {
-            let ret = onRejected(this.reason);
-            if (ret instanceof Promise) {
-              if (ret === promise) {
-                throw new TypeError();
-              }
-              if (ret.status !== PENDING) {
-                this.status = ret.status;
-                ret.status === FULFILLED
-                  ? resolveFn(ret.value)
-                  : rejectFn(ret.reason);
-              }
-              // 如果返回的promise在后面发生状态改变，则改变当前promise的状态
-              ret.then(
-                (value) => {
-                  this.status = ret.status;
-                  resolveFn(value);
-                },
-                (reason) => {
-                  this.status = ret.status;
-                  rejectFn(reason);
-                }
-              );
-            } else {
-              resolveFn(ret);
-            }
-          } catch (err) {
-            rejectFn(err);
-          }
-        }, 0);
-      }
-      if (this.status === PENDING) {
         this.onRejectedCallbacks.push((reason) => {
           try {
-            resolveFn(onRejected(reason));
+            resolve(onRejected(reason));
           } catch (err) {
-            rejectFn(err);
+            reject(err);
           }
         });
       }
-    } else {
-      // onRejected非函数时将reason透传到下一个promise
-      onRejected = (reason) => rejectFn(reason);
-      this.onRejectedCallbacks.push(onRejected);
-    }
-    return promise;
+    });
+    return promise
   }
 }
 
