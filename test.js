@@ -1,16 +1,11 @@
-// const Promise = require("./index");
-
-const Promise = require(".")
-
-// const Promise = require(".");
+const Promise = require("./index");
 
 const promise = Promise.resolve()
 
 promise.then(() => {
-  // console.log(999)
-  return promise
+  return new Promise(() => {})
 }).then((value) => {
-  console.log(value)
+  console.log('value', value)
 }, (reason) => {
-  // console.log(reason)
+  console.log('reason', reason)
 })

@@ -30,7 +30,7 @@ class Promise {
             i++
           ) {
             try {
-              this.onFulfilledCallbacks[i](this.value);
+              this.onFulfilledCallbacks[i].call(null, this.value);
             } catch (err) {}
           }
           // 循环完毕后清空队列
@@ -49,7 +49,7 @@ class Promise {
         setTimeout(() => {
           for (let i = 0, len = this.onRejectedCallbacks.length; i < len; i++) {
             try {
-              this.onRejectedCallbacks[i](this.reason);
+              this.onRejectedCallbacks[i].call(null, this.reason);
             } catch (err) {}
           }
           // 循环完毕后清空队列
@@ -79,22 +79,52 @@ class Promise {
       if (this.status === FULFILLED) {
         setTimeout(() => {
           try {
-            let ret = onFulfilled(this.value)
-            if (ret !== promise) {
+            let ret = onFulfilled(this.value);
+            // 返回值为Promise实例时，有一些特殊行为
+            if (ret instanceof Promise) {
+              // 返回当前同一实例时，抛出TypeError
+              if (ret === promise) {
+                throw new TypeError();
+              }
+              if (ret.status !== PENDING) {
+                this.status = ret.status;
+                ret.status === FULFILLED
+                  ? resolveFn(ret.value)
+                  : rejectFn(ret.reason);
+              }
+              // 如果返回的promise在后面发生状态改变，则改变当前promise的状态
+              ret.then(
+                (value) => {
+                  this.status = ret.status;
+                  resolveFn(value);
+                },
+                (reason) => {
+                  this.status = ret.status;
+                  rejectFn(reason);
+                }
+              );
+            } else {
               resolveFn(ret);
             }
-            throw new TypeError()
           } catch (err) {
             rejectFn(err);
           }
-        }, 0)
+        }, 0);
       }
       // 状态为pending时，将回调保存至队列中
       if (this.status === PENDING) {
         this.onFulfilledCallbacks.push((value) => {
           // 包装一层，根据回调执行状态修改返回的新实例的状态
           try {
-            resolveFn(onFulfilled(value));
+            let ret = onFulfilled(value);
+            if (ret instanceof Promise) {
+              if (ret.status !== PENDING) {
+                this.status = ret.status;
+                resolveFn(ret.value);
+              }
+            } else {
+              resolveFn(ret);
+            }
           } catch (err) {
             rejectFn(err);
           }
@@ -102,22 +132,42 @@ class Promise {
       }
     } else {
       // onFulfilled非函数时将value透传到下一个promise
-      onFulfilled = (value) => resolveFn(value)
-      this.onFulfilledCallbacks.push(onFulfilled)
+      onFulfilled = (value) => resolveFn(value);
+      this.onFulfilledCallbacks.push(onFulfilled);
     }
     if (typeof onRejected === "function") {
       if (this.status === REJECTED) {
         setTimeout(() => {
           try {
-            let ret = onRejected(this.reason)
-            if (ret !== promise) {
+            let ret = onRejected(this.reason);
+            if (ret instanceof Promise) {
+              if (ret === promise) {
+                throw new TypeError();
+              }
+              if (ret.status !== PENDING) {
+                this.status = ret.status;
+                ret.status === FULFILLED
+                  ? resolveFn(ret.value)
+                  : rejectFn(ret.reason);
+              }
+              // 如果返回的promise在后面发生状态改变，则改变当前promise的状态
+              ret.then(
+                (value) => {
+                  this.status = ret.status;
+                  resolveFn(value);
+                },
+                (reason) => {
+                  this.status = ret.status;
+                  rejectFn(reason);
+                }
+              );
+            } else {
               resolveFn(ret);
             }
-            throw new TypeError()
           } catch (err) {
             rejectFn(err);
           }
-        }, 0)
+        }, 0);
       }
       if (this.status === PENDING) {
         this.onRejectedCallbacks.push((reason) => {
@@ -130,10 +180,10 @@ class Promise {
       }
     } else {
       // onRejected非函数时将reason透传到下一个promise
-      onRejected = (reason) => rejectFn(reason)
-      this.onRejectedCallbacks.push(onRejected)
+      onRejected = (reason) => rejectFn(reason);
+      this.onRejectedCallbacks.push(onRejected);
     }
-    return promise
+    return promise;
   }
 }
 
