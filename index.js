@@ -3,68 +3,55 @@ const FULFILLED = "FULFILLED";
 const REJECTED = "REJECTED";
 
 function resolvePromise(promise, x, resolve, reject) {
+  // 返回当前同一实例时，抛出TypeError
+  if (x === promise) {
+    throw new TypeError('The promise and its value shouldn\'t refer to the same object');
+  }
   // 返回值为Promise实例时，有一些特殊行为
   if (x instanceof Promise) {
-    // 返回当前同一实例时，抛出TypeError
-    if (x === promise) {
-      throw new TypeError();
-    }
-    if (x.status !== PENDING) {
+    if (x.status === PENDING) {
+      x.then((value) => {
+        this.status = x.status
+        resolvePromise(promise, value, resolve, reject)
+      }, (reason) => {
+        this.status = x.status
+        reject(reason)
+      })
+    } else {
       this.status = x.status;
       x.status === FULFILLED
         ? resolve(x.value)
         : reject(x.reason);
     }
-    // 如果返回的promise在后面发生状态改变，则改变当前promise的状态
-    x.then(
-      (value) => {
-        this.status = x.status;
-        resolve(value);
-      },
-      (reason) => {
-        this.status = x.status;
-        reject(reason);
+  } else if ((typeof x === 'object' && x !== null) || typeof x === 'function') {
+    let thenFunction = x.then
+    let hasBeenCalled = false
+    try {
+      if (typeof thenFunction === 'function') {
+        thenFunction.call(x, (y) => {
+          if (!hasBeenCalled) {
+            resolvePromise(promise, y, resolve, reject)
+            hasBeenCalled = true
+          }
+        }, (r) => {
+          if (!hasBeenCalled) {
+            reject(r)
+            hasBeenCalled = true
+          }
+        })
+      } else {
+        resolve(x)
+        hasBeenCalled = true
       }
-    );
+    } catch (err) {
+      if (!hasBeenCalled) {
+        reject(err)
+        hasBeenCalled = true
+      }
+    }
   } else {
-    if ((typeof x === 'object' || 'function') && !!x.then) {
-      promise.then = function(...args) {
-        x.then.apply(promise, args)
-      }
-    }
-    resolve(x);
-  }
-}
-
-function rejectPromise(promise, r, resolve, reject) {
-  if (r instanceof Promise) {
-    if (r === promise) {
-      throw new TypeError();
-    }
-    if (r.status !== PENDING) {
-      this.status = r.status;
-      r.status === FULFILLED
-        ? resolve(r.value)
-        : reject(r.reason);
-    }
-    // 如果返回的promise在后面发生状态改变，则改变当前promise的状态
-    r.then(
-      (value) => {
-        this.status = r.status;
-        resolve(value);
-      },
-      (reason) => {
-        this.status = r.status;
-        reject(reason);
-      }
-    );
-  } else {
-    if ((typeof r === 'object' || 'function') && !!r.then) {
-      promise.then = function(...args) {
-        r.then.apply(promise, args)
-      }
-    }
-    resolve(r);
+    // 传入x为普通值时，直接修改promise的value，也作为递归调用的终点
+    resolve(x)
   }
 }
 
@@ -157,7 +144,7 @@ class Promise {
         setTimeout(() => {
           try {
             let ret = onRejected(this.reason);
-            rejectPromise(promise, ret, resolve, reject)
+            resolvePromise(promise, ret, resolve, reject)
           } catch (err) {
             reject(err);
           }
