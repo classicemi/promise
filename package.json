@@ -11,7 +11,7 @@
     "promises-aplus-tests": "^2.1.2"
   },
   "scripts": {
-    "test": "promises-aplus-tests test/adapter --grep 2.3.2 --reporter spec"
+    "test": "promises-aplus-tests test/adapter --reporter spec"
   },
   "repository": {
     "type": "git",

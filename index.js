@@ -2,44 +2,27 @@ const PENDING = "PENDING";
 const FULFILLED = "FULFILLED";
 const REJECTED = "REJECTED";
 
-function resolveSammy(promise, x, resolve, reject) {
+function resolvePromise(promise, x, resolve, reject) {
+  // console.log(x)
   // 返回当前同一实例时，抛出TypeError
   if (x === promise) {
-    throw new TypeError(
-      "The promise and the value shouldn't be the same"
-    );
+    throw new TypeError("The promise and the value shouldn't be the same");
   }
-  // 返回值为Sammy实例时，有一些特殊行为
-  if (x instanceof Sammy) {
-    if (x.status === PENDING) {
-      x.then(
-        (value) => {
-          this.status = x.status;
-          resolveSammy(promise, value, resolve, reject);
-        },
-        (reason) => {
-          this.status = x.status;
-          reject(reason);
-        }
-      );
-    } else {
-      this.status = x.status;
-      x.status === FULFILLED ? resolve(x.value) : reject(x.reason);
-    }
-  } else if ((typeof x === "object" && x !== null) || typeof x === "function") {
-    let thenFunction = x.then;
+  if ((typeof x === "object" && x !== null) || typeof x === "function") {
     let hasBeenCalled = false;
     try {
+      // 对象上的then accessor可能会直接抛错，赋值需放在try-catch中
+      let thenFunction = x.then;
       if (thenFunction && typeof thenFunction === "function") {
         thenFunction.call(
           x,
-          function (y) {
+          (y) => {
             if (!hasBeenCalled) {
-              resolveSammy(promise, y, resolve, reject);
+              resolvePromise(promise, y, resolve, reject);
               hasBeenCalled = true;
             }
           },
-          function (r) {
+          (r) => {
             if (!hasBeenCalled) {
               reject(r);
               hasBeenCalled = true;
@@ -47,8 +30,8 @@ function resolveSammy(promise, x, resolve, reject) {
           }
         );
       } else {
-        resolve(x);
         hasBeenCalled = true;
+        resolve(x);
       }
     } catch (err) {
       if (!hasBeenCalled) {
@@ -62,7 +45,7 @@ function resolveSammy(promise, x, resolve, reject) {
   }
 }
 
-class Sammy {
+class Promise {
   constructor(executor) {
     // 记录实例状态
     this.status = PENDING;
@@ -128,7 +111,7 @@ class Sammy {
   }
 
   then(onFulfilled, onRejected) {
-    let promise = new Sammy((resolve, reject) => {
+    let promise = new Promise((resolve, reject) => {
       if (typeof onFulfilled !== "function") {
         // onFulfilled非函数时将value透传到下一个promise
         onFulfilled = (value) => resolve(value);
@@ -141,7 +124,7 @@ class Sammy {
         setTimeout(() => {
           try {
             let ret = onFulfilled(this.value);
-            resolveSammy(promise, ret, resolve, reject);
+            resolvePromise(promise, ret, resolve, reject);
           } catch (err) {
             reject(err);
           }
@@ -151,7 +134,7 @@ class Sammy {
         setTimeout(() => {
           try {
             let ret = onRejected(this.reason);
-            resolveSammy(promise, ret, resolve, reject);
+            resolvePromise(promise, ret, resolve, reject);
           } catch (err) {
             reject(err);
           }
@@ -162,7 +145,7 @@ class Sammy {
           // 包装一层，根据回调执行状态修改返回的新实例的状态
           try {
             let ret = onFulfilled(value);
-            if (ret instanceof Sammy) {
+            if (ret instanceof Promise) {
               if (ret.status !== PENDING) {
                 this.status = ret.status;
                 resolve(ret.value);
@@ -187,16 +170,16 @@ class Sammy {
   }
 }
 
-Sammy.resolve = function (value) {
-  return new Sammy((resolve) => {
+Promise.resolve = function (value) {
+  return new Promise((resolve) => {
     resolve(value);
   });
 };
 
-Sammy.rejected = function (reason) {
-  return new Sammy((resolve, reject) => {
+Promise.rejected = function (reason) {
+  return new Promise((resolve, reject) => {
     reject(reason);
   });
 };
 
-module.exports = Sammy;
+module.exports = Promise;
