@@ -30,7 +30,6 @@ function resolvePromise(promise, x, resolve, reject) {
           }
         );
       } else {
-        hasBeenCalled = true;
         resolve(x);
       }
     } catch (err) {
@@ -59,6 +58,10 @@ class Promise {
     this.onRejectedCallbacks = [];
 
     let resolve = (value) => {
+      if (value instanceof Promise) {
+        value.then(resolve, reject);
+        return;
+      }
       // 只有pending状态会执行
       if (this.status === PENDING) {
         // 修改状态为fulfilled
@@ -145,14 +148,7 @@ class Promise {
           // 包装一层，根据回调执行状态修改返回的新实例的状态
           try {
             let ret = onFulfilled(value);
-            if (ret instanceof Promise) {
-              if (ret.status !== PENDING) {
-                this.status = ret.status;
-                resolve(ret.value);
-              }
-            } else {
-              resolve(ret);
-            }
+            resolvePromise(promise, ret, resolve, reject);
           } catch (err) {
             reject(err);
           }
@@ -168,6 +164,10 @@ class Promise {
     });
     return promise;
   }
+
+  catch(callback) {
+    return this.then(null, callback);
+  }
 }
 
 Promise.resolve = function (value) {
@@ -176,9 +176,101 @@ Promise.resolve = function (value) {
   });
 };
 
-Promise.rejected = function (reason) {
+Promise.reject = function (reason) {
   return new Promise((resolve, reject) => {
     reject(reason);
+  });
+};
+
+Promise.all = function (iterable) {
+  if (iterable == null || typeof iterable[Symbol.iterator] !== "function") {
+    return new TypeError(
+      `TypeError: ${typeof iterable} ${iterable} is not iterable`
+    );
+  }
+  return new Promise((resolve, reject) => {
+    const ret = [];
+    let finishedNumber = 0;
+
+    function setResultValue(value, index) {
+      ret[index] = value;
+      finishedNumber = finishedNumber + 1;
+      if (finishedNumber === iterable.length) {
+        resolve(ret);
+      }
+    }
+
+    for (let i = 0, len = iterable.length; i < len; i++) {
+      if (iterable[i] && typeof iterable[i].then === "function") {
+        iterable[i].then((value) => {
+          setResultValue(value, i);
+        }, reject);
+      } else {
+        setResultValue(iterable[i], i);
+      }
+    }
+  });
+};
+
+Promise.allSettled = function (iterable) {
+  // 检测是否为可遍历类型
+  if (iterable == null || typeof iterable[Symbol.iterator] !== "function") {
+    return new TypeError(
+      `TypeError: ${typeof iterable} ${iterable} is not iterable`
+    );
+  }
+  return new Promise((resolve, reject) => {
+    // 用于存放结果
+    const ret = [];
+    // 计数器
+    let finishedNumber = 0;
+
+    function setResultValue(value, index) {
+      ret[index] = value;
+      finishedNumber = finishedNumber + 1;
+      if (finishedNumber === iterable.length) {
+        resolve(ret);
+      }
+    }
+
+    for (let i = 0, len = iterable.length; i < len; i++) {
+      if (iterable[i] && typeof iterable[i].then === "function") {
+        // 对promise类型在获得结果后将结果添加到数组中
+        iterable[i].then(
+          (value) => {
+            setResultValue(value, i);
+          },
+          (reason) => {
+            setResultValue(reason, i);
+          }
+        );
+      } else {
+        // 非promise类型直接添加到结果
+        setResultValue(iterable[i], i);
+      }
+    }
+  });
+};
+
+Promise.race = function (iterable) {
+  // 检测是否为可遍历类型
+  if (iterable == null || typeof iterable[Symbol.iterator] !== "function") {
+    return new TypeError(
+      `TypeError: ${typeof iterable} ${iterable} is not iterable`
+    );
+  }
+
+  return new Promise((resolve, reject) => {
+    for (let i = 0, len = iterable.length; i < len; i++) {
+      if (iterable[i] && typeof iterable[i].then === "function") {
+        iterable[i].then(
+          (value) => resolve(value),
+          (reason) => reject(reason)
+        );
+      } else {
+        resolve(iterable[i], i);
+      }
+    }
   });
 };
 

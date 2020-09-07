@@ -5,7 +5,7 @@ exports.resolved = function(value) {
 }
 
 exports.rejected = function(reason) {
-  return Promise.rejected(reason)
+  return Promise.reject(reason)
 }
 
 exports.deferred = function() {
