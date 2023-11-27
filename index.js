@@ -1,277 +1,277 @@
-const PENDING = "PENDING";
-const FULFILLED = "FULFILLED";
-const REJECTED = "REJECTED";
+const PENDING = 'PENDING'
+const FULFILLED = 'FULFILLED'
+const REJECTED = 'REJECTED'
 
 function resolvePromise(promise, x, resolve, reject) {
   // console.log(x)
   // 返回当前同一实例时，抛出TypeError
   if (x === promise) {
-    throw new TypeError("The promise and the value shouldn't be the same");
+    throw new TypeError("The promise and the value shouldn't be the same")
   }
-  if ((typeof x === "object" && x !== null) || typeof x === "function") {
-    let hasBeenCalled = false;
+  if ((typeof x === 'object' && x !== null) || typeof x === 'function') {
+    let hasBeenCalled = false
     try {
       // 对象上的then accessor可能会直接抛错，赋值需放在try-catch中
-      let thenFunction = x.then;
-      if (thenFunction && typeof thenFunction === "function") {
+      let thenFunction = x.then
+      if (thenFunction && typeof thenFunction === 'function') {
         thenFunction.call(
           x,
-          (y) => {
+          y => {
             if (!hasBeenCalled) {
-              resolvePromise(promise, y, resolve, reject);
-              hasBeenCalled = true;
+              resolvePromise(promise, y, resolve, reject)
+              hasBeenCalled = true
             }
           },
-          (r) => {
+          r => {
             if (!hasBeenCalled) {
-              reject(r);
-              hasBeenCalled = true;
+              reject(r)
+              hasBeenCalled = true
             }
           }
-        );
+        )
       } else {
-        resolve(x);
+        resolve(x)
       }
     } catch (err) {
       if (!hasBeenCalled) {
-        reject(err);
-        hasBeenCalled = true;
+        reject(err)
+        hasBeenCalled = true
       }
     }
   } else {
     // 传入x为普通值时，直接修改promise的value，也作为递归调用的终点
-    resolve(x);
+    resolve(x)
   }
 }
 
-class Promise {
+class MyPromise {
   constructor(executor) {
     // 记录实例状态
-    this.status = PENDING;
+    this.status = PENDING
     // 实例被resolve时，存放value
-    this.value = undefined;
+    this.value = undefined
     // 实例被reject时，存放reason
-    this.reason = undefined;
+    this.reason = undefined
     // 实例pending时，存放fulfilled回调队列
-    this.onFulfilledCallbacks = [];
+    this.onFulfilledCallbacks = []
     // 实例pending时，存放rejected回调队列
-    this.onRejectedCallbacks = [];
+    this.onRejectedCallbacks = []
 
-    let resolve = (value) => {
-      if (value instanceof Promise) {
-        value.then(resolve, reject);
-        return;
+    let resolve = value => {
+      if (value instanceof MyPromise) {
+        value.then(resolve, reject)
+        return
       }
       // 只有pending状态会执行
       if (this.status === PENDING) {
         // 修改状态为fulfilled
-        this.status = FULFILLED;
+        this.status = FULFILLED
         // 保存value
-        this.value = value;
+        this.value = value
         // 在下一个事件循环中依次执行回调
-        setTimeout(() => {
+        queueMicrotask(() => {
           for (
             let i = 0, len = this.onFulfilledCallbacks.length;
             i < len;
             i++
           ) {
             try {
-              this.onFulfilledCallbacks[i].call(null, this.value);
+              this.onFulfilledCallbacks[i].call(null, this.value)
             } catch (err) {}
           }
           // 循环完毕后清空队列
-          this.onFulfilledCallbacks = [];
-        }, 0);
+          this.onFulfilledCallbacks = []
+        })
       }
-    };
-    let reject = (reason) => {
+    }
+    let reject = reason => {
       // 只有pending状态会执行
       if (this.status === PENDING) {
         // 修改状态为rejected
-        this.status = REJECTED;
+        this.status = REJECTED
         // 保存reason
-        this.reason = reason;
+        this.reason = reason
         // 在下一个事件循环中依次执行回调
-        setTimeout(() => {
+        queueMicrotask(() => {
           for (let i = 0, len = this.onRejectedCallbacks.length; i < len; i++) {
             try {
-              this.onRejectedCallbacks[i].call(null, this.reason);
+              this.onRejectedCallbacks[i].call(null, this.reason)
             } catch (err) {}
           }
           // 循环完毕后清空队列
-          this.onRejectedCallbacks = [];
-        }, 0);
+          this.onRejectedCallbacks = []
+        })
       }
-    };
+    }
 
     try {
       // 执行传入构造函数的函数
-      executor(resolve, reject);
+      executor(resolve, reject)
     } catch (err) {
       // 如果抛出异常，将实例状态置为rejected
-      reject(err);
+      reject(err)
     }
   }
 
   then(onFulfilled, onRejected) {
-    let promise = new Promise((resolve, reject) => {
-      if (typeof onFulfilled !== "function") {
+    let promise = new MyPromise((resolve, reject) => {
+      if (typeof onFulfilled !== 'function') {
         // onFulfilled非函数时将value透传到下一个promise
-        onFulfilled = (value) => resolve(value);
+        onFulfilled = value => resolve(value)
       }
-      if (typeof onRejected !== "function") {
+      if (typeof onRejected !== 'function') {
         // onRejected非函数时将reason透传到下一个promise
-        onRejected = (reason) => reject(reason);
+        onRejected = reason => reject(reason)
       }
       if (this.status === FULFILLED) {
-        setTimeout(() => {
+        queueMicrotask(() => {
           try {
-            let ret = onFulfilled(this.value);
-            resolvePromise(promise, ret, resolve, reject);
+            let ret = onFulfilled(this.value)
+            resolvePromise(promise, ret, resolve, reject)
           } catch (err) {
-            reject(err);
+            reject(err)
           }
-        }, 0);
+        })
       }
       if (this.status === REJECTED) {
-        setTimeout(() => {
+        queueMicrotask(() => {
           try {
-            let ret = onRejected(this.reason);
-            resolvePromise(promise, ret, resolve, reject);
+            let ret = onRejected(this.reason)
+            resolvePromise(promise, ret, resolve, reject)
           } catch (err) {
-            reject(err);
+            reject(err)
           }
-        }, 0);
+        })
       }
       if (this.status === PENDING) {
-        this.onFulfilledCallbacks.push((value) => {
+        this.onFulfilledCallbacks.push(value => {
           // 包装一层，根据回调执行状态修改返回的新实例的状态
           try {
-            let ret = onFulfilled(value);
-            resolvePromise(promise, ret, resolve, reject);
+            let ret = onFulfilled(value)
+            resolvePromise(promise, ret, resolve, reject)
           } catch (err) {
-            reject(err);
+            reject(err)
           }
-        });
-        this.onRejectedCallbacks.push((reason) => {
+        })
+        this.onRejectedCallbacks.push(reason => {
           try {
-            resolve(onRejected(reason));
+            resolve(onRejected(reason))
           } catch (err) {
-            reject(err);
+            reject(err)
           }
-        });
+        })
       }
-    });
-    return promise;
+    })
+    return promise
   }
 
   catch(callback) {
-    return this.then(null, callback);
+    return this.then(null, callback)
   }
 }
 
-Promise.resolve = function (value) {
-  return new Promise((resolve) => {
-    resolve(value);
-  });
-};
+MyPromise.resolve = function (value) {
+  return new MyPromise(resolve => {
+    resolve(value)
+  })
+}
 
-Promise.reject = function (reason) {
-  return new Promise((resolve, reject) => {
-    reject(reason);
-  });
-};
+MyPromise.reject = function (reason) {
+  return new MyPromise((resolve, reject) => {
+    reject(reason)
+  })
+}
 
-Promise.all = function (iterable) {
-  if (iterable == null || typeof iterable[Symbol.iterator] !== "function") {
+MyPromise.all = function (iterable) {
+  if (iterable == null || typeof iterable[Symbol.iterator] !== 'function') {
     return new TypeError(
       `TypeError: ${typeof iterable} ${iterable} is not iterable`
-    );
+    )
   }
-  return new Promise((resolve, reject) => {
-    const ret = [];
-    let finishedNumber = 0;
+  return new MyPromise((resolve, reject) => {
+    const ret = []
+    let finishedNumber = 0
 
     function setResultValue(value, index) {
-      ret[index] = value;
-      finishedNumber = finishedNumber + 1;
+      ret[index] = value
+      finishedNumber = finishedNumber + 1
       if (finishedNumber === iterable.length) {
-        resolve(ret);
+        resolve(ret)
       }
     }
 
     for (let i = 0, len = iterable.length; i < len; i++) {
-      if (iterable[i] && typeof iterable[i].then === "function") {
-        iterable[i].then((value) => {
-          setResultValue(value, i);
-        }, reject);
+      if (iterable[i] && typeof iterable[i].then === 'function') {
+        iterable[i].then(value => {
+          setResultValue(value, i)
+        }, reject)
       } else {
-        setResultValue(iterable[i], i);
+        setResultValue(iterable[i], i)
       }
     }
-  });
-};
+  })
+}
 
-Promise.allSettled = function (iterable) {
+MyPromise.allSettled = function (iterable) {
   // 检测是否为可遍历类型
-  if (iterable == null || typeof iterable[Symbol.iterator] !== "function") {
+  if (iterable == null || typeof iterable[Symbol.iterator] !== 'function') {
     return new TypeError(
       `TypeError: ${typeof iterable} ${iterable} is not iterable`
-    );
+    )
   }
-  return new Promise((resolve, reject) => {
+  return new MyPromise((resolve, reject) => {
     // 用于存放结果
-    const ret = [];
+    const ret = []
     // 计数器
-    let finishedNumber = 0;
+    let finishedNumber = 0
 
     function setResultValue(value, index) {
-      ret[index] = value;
-      finishedNumber = finishedNumber + 1;
+      ret[index] = value
+      finishedNumber = finishedNumber + 1
       if (finishedNumber === iterable.length) {
-        resolve(ret);
+        resolve(ret)
       }
     }
 
     for (let i = 0, len = iterable.length; i < len; i++) {
-      if (iterable[i] && typeof iterable[i].then === "function") {
+      if (iterable[i] && typeof iterable[i].then === 'function') {
         // 对promise类型在获得结果后将结果添加到数组中
         iterable[i].then(
-          (value) => {
-            setResultValue(value, i);
+          value => {
+            setResultValue(value, i)
           },
-          (reason) => {
-            setResultValue(reason, i);
+          reason => {
+            setResultValue(reason, i)
           }
-        );
+        )
       } else {
         // 非promise类型直接添加到结果
-        setResultValue(iterable[i], i);
+        setResultValue(iterable[i], i)
       }
     }
-  });
-};
+  })
+}
 
-Promise.race = function (iterable) {
+MyPromise.race = function (iterable) {
   // 检测是否为可遍历类型
-  if (iterable == null || typeof iterable[Symbol.iterator] !== "function") {
+  if (iterable == null || typeof iterable[Symbol.iterator] !== 'function') {
     return new TypeError(
       `TypeError: ${typeof iterable} ${iterable} is not iterable`
-    );
+    )
   }
 
-  return new Promise((resolve, reject) => {
+  return new MyPromise((resolve, reject) => {
     for (let i = 0, len = iterable.length; i < len; i++) {
-      if (iterable[i] && typeof iterable[i].then === "function") {
+      if (iterable[i] && typeof iterable[i].then === 'function') {
         iterable[i].then(
-          (value) => resolve(value),
-          (reason) => reject(reason)
-        );
+          value => resolve(value),
+          reason => reject(reason)
+        )
       } else {
-        resolve(iterable[i], i);
+        resolve(iterable[i], i)
       }
     }
-  });
-};
+  })
+}
 
-module.exports = Promise;
+module.exports = MyPromise
